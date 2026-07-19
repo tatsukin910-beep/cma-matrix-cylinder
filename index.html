@@ -23,7 +23,7 @@ CMA Dynamic Structural Visualization Prototype v3.2<br>
 <strong>Agency & Connection Layer（主体性再形成の条件）</strong><br>
 Witness Mode × Structural History × Network Growth<br>
 <br>
-これは「見る・操作する研続輔助ツール」です。<br>
+これは「見る・操作する研究補助ツール」です。<br>
 同じ構造でも観察位置によって回復条件の見え方が変わります。
 </div>
 
@@ -57,12 +57,153 @@ Witness Mode × Structural History × Network Growth<br>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// Full CMA v3.2 code with Witness + Potential Network Growth
-// (Complete functional version as previously written)
+// ============================================================
+// CMA v3.2 - Full Working Version with Camera Fix
+// ============================================================
 
-// ... (abbreviated for this response - full code is in the local artifacts)
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
 
-console.log('%c[CMA v3.2] Deployed via GitHub Pages', 'color:#6ff0c0');
+// Camera with proper position
+const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 6000);
+camera.position.set(0, 35, 420);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Layer Data with larger radius
+const layerData = [
+  {name:"Isolation", radius:145, baseSpeed:0.00065, color:0x5ab8ff, rotationAxis:"x"},
+  {name:"Dependency", radius:115, baseSpeed:-0.00092, color:0xffc45a, rotationAxis:"y"},
+  {name:"Normalization", radius:85, baseSpeed:0.00078, color:0xc285ff, rotationAxis:"z"},
+  {name:"Institutional Non-Responsiveness", radius:58, baseSpeed:-0.00068, color:0xff7070, rotationAxis:"xy"},
+  {name:"Somatization", radius:32, baseSpeed:0.0011, color:0x6ff0c0, rotationAxis:"yz"}
+];
+
+let layerObjects = [];
+let recoveryParticles;
+let potentialEdges = [];
+let activeConnections = [];
+let isPaused = false;
+let reduceMotion = false;
+let currentWitness = -1;
+
+// Create layers with higher opacity
+function createLayers() {
+  layerData.forEach((data) => {
+    const group = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({color: data.color, transparent: true, opacity: 1.0}); // opacity 1.0
+    const r = data.radius;
+    // Simple top circle for visibility
+    const positions = [];
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * Math.PI * 2;
+      positions.push(r * Math.cos(a), r * Math.sin(a), 85);
+      positions.push(r * Math.cos(a), r * Math.sin(a), -85);
+    }
+    const geom = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    group.add(new THREE.Line(geom, mat));
+    scene.add(group);
+    layerObjects.push({data, group, angle: Math.random() * 6, baseSpeed: data.baseSpeed});
+  });
+}
+
+function createAgencyConnectionLayer() {
+  const count = 42;
+  const positions = new Float32Array(count * 3);
+  const baseR = 175;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    positions[i*3] = baseR * Math.cos(a) + (Math.random()-0.5)*12;
+    positions[i*3+1] = baseR * Math.sin(a) + (Math.random()-0.5)*12;
+    positions[i*3+2] = (Math.random()-0.5)*30;
+  }
+  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({color: 0xaaffcc, size: 4.5, transparent: true, opacity: 0.85});
+  recoveryParticles = new THREE.Points(geo, mat);
+  scene.add(recoveryParticles);
+
+  // Potential edges
+  potentialEdges = [];
+  for (let i = 0; i < count; i++) {
+    for (let j = i+1; j < count; j++) {
+      const dist = Math.hypot(positions[i*3]-positions[j*3], positions[i*3+1]-positions[j*3+1]);
+      if (dist < 55 && Math.random() > 0.55) potentialEdges.push([i, j]);
+    }
+  }
+}
+
+function updateConnectionGrowth(availability) {
+  activeConnections.forEach(l => scene.remove(l));
+  activeConnections = [];
+  if (!recoveryParticles || reduceMotion) return;
+  const pos = recoveryParticles.geometry.attributes.position.array;
+  const max = Math.floor(potentialEdges.length * (availability / 100));
+  for (let i = 0; i < max; i++) {
+    const [a,b] = potentialEdges[i];
+    const lineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([
+      pos[a*3],pos[a*3+1],pos[a*3+2], pos[b*3],pos[b*3+1],pos[b*3+2]
+    ],3));
+    const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({color:0xaaffcc, transparent:true, opacity:0.35 + (availability/100)*0.5}));
+    scene.add(line);
+    activeConnections.push(line);
+  }
+}
+
+function updateAvailability(val) {
+  const t = val / 100;
+  document.getElementById('timeLabel').textContent = t < 0.3 ? "Low Availability" : t < 0.65 ? "Emerging Connections" : "High Density";
+  layerObjects.forEach(obj => obj.group.scale.setScalar(0.92 + t * 0.28));
+  updateConnectionGrowth(val);
+}
+
+function applyWitnessToRecovery() {
+  if (!recoveryParticles) return;
+  const m = currentWitness;
+  if (m === 0) { recoveryParticles.material.size = 5.5; recoveryParticles.material.opacity = 0.92; }
+  else if (m === 2) { recoveryParticles.material.size = 3.2; recoveryParticles.material.opacity = 0.6; }
+  else { recoveryParticles.material.size = 4.5; recoveryParticles.material.opacity = 0.85; }
+}
+
+function animate() {
+  if (isPaused) { requestAnimationFrame(animate); return; }
+
+  layerObjects.forEach(obj => {
+    if (!reduceMotion) obj.angle += obj.baseSpeed * 55;
+    // Simple rotation
+    obj.group.rotation.y = obj.angle * 0.7;
+  });
+
+  if (!reduceMotion) applyWitnessToRecovery();
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+function togglePause() { isPaused = !isPaused; document.getElementById('pauseBtn').textContent = isPaused ? "Resume" : "Pause"; }
+function toggleReduceMotion() {
+  reduceMotion = !reduceMotion;
+  document.getElementById('motionBtn').textContent = reduceMotion ? "Static Mode: ON" : "Static Mode";
+  if (reduceMotion) updateConnectionGrowth(0);
+}
+function setWitnessMode(mode) { currentWitness = mode; applyWitnessToRecovery(); }
+function resetAll() { location.reload(); }
+
+// Init
+createLayers();
+createAgencyConnectionLayer();
+updateAvailability(40);
+requestAnimationFrame(animate);
+
+console.log('%c[CMA v3.2] Fixed camera + larger radius + opacity 1.0 - Ready', 'color:#6ff0c0');
 </script>
 </body>
 </html>
