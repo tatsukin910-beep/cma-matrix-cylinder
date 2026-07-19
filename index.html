@@ -58,19 +58,21 @@ Witness Mode × Structural History × Network Growth<br>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ============================================================
-// CMA v3.2 - Full Working Version with Camera Fix
+// CMA v3.2 - Fixed Camera + Larger Radius Version
 // ============================================================
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+scene.fog = new THREE.Fog(0x000000, 900, 4200);
 
-// Camera with proper position
 const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 6000);
-camera.position.set(0, 35, 420);
+// Camera Fix
+camera.position.set(0, 35, 520);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
 window.addEventListener('resize', () => {
@@ -81,11 +83,11 @@ window.addEventListener('resize', () => {
 
 // Layer Data with larger radius
 const layerData = [
-  {name:"Isolation", radius:145, baseSpeed:0.00065, color:0x5ab8ff, rotationAxis:"x"},
-  {name:"Dependency", radius:115, baseSpeed:-0.00092, color:0xffc45a, rotationAxis:"y"},
-  {name:"Normalization", radius:85, baseSpeed:0.00078, color:0xc285ff, rotationAxis:"z"},
-  {name:"Institutional Non-Responsiveness", radius:58, baseSpeed:-0.00068, color:0xff7070, rotationAxis:"xy"},
-  {name:"Somatization", radius:32, baseSpeed:0.0011, color:0x6ff0c0, rotationAxis:"yz"}
+  {name:"Isolation", radius:180, baseSpeed:0.00065, color:0x5ab8ff, rotationAxis:"x"},
+  {name:"Dependency", radius:145, baseSpeed:-0.00092, color:0xffc45a, rotationAxis:"y"},
+  {name:"Normalization", radius:110, baseSpeed:0.00078, color:0xc285ff, rotationAxis:"z"},
+  {name:"Institutional Non-Responsiveness", radius:75, baseSpeed:-0.00068, color:0xff7070, rotationAxis:"xy"},
+  {name:"Somatization", radius:45, baseSpeed:0.0011, color:0x6ff0c0, rotationAxis:"yz"}
 ];
 
 let layerObjects = [];
@@ -94,20 +96,19 @@ let potentialEdges = [];
 let activeConnections = [];
 let isPaused = false;
 let reduceMotion = false;
+let currentTime = 40;
 let currentWitness = -1;
 
-// Create layers with higher opacity
 function createLayers() {
   layerData.forEach((data) => {
     const group = new THREE.Group();
-    const mat = new THREE.LineBasicMaterial({color: data.color, transparent: true, opacity: 1.0}); // opacity 1.0
+    const mat = new THREE.LineBasicMaterial({color: data.color, transparent: true, opacity: 1.0});
     const r = data.radius;
-    // Simple top circle for visibility
     const positions = [];
     for (let i = 0; i <= 32; i++) {
       const a = (i / 32) * Math.PI * 2;
-      positions.push(r * Math.cos(a), r * Math.sin(a), 85);
-      positions.push(r * Math.cos(a), r * Math.sin(a), -85);
+      positions.push(r * Math.cos(a), r * Math.sin(a), 95);
+      positions.push(r * Math.cos(a), r * Math.sin(a), -95);
     }
     const geom = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     group.add(new THREE.Line(geom, mat));
@@ -119,24 +120,23 @@ function createLayers() {
 function createAgencyConnectionLayer() {
   const count = 42;
   const positions = new Float32Array(count * 3);
-  const baseR = 175;
+  const baseR = 210;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
     positions[i*3] = baseR * Math.cos(a) + (Math.random()-0.5)*12;
     positions[i*3+1] = baseR * Math.sin(a) + (Math.random()-0.5)*12;
-    positions[i*3+2] = (Math.random()-0.5)*30;
+    positions[i*3+2] = (Math.random()-0.5)*40;
   }
   const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({color: 0xaaffcc, size: 4.5, transparent: true, opacity: 0.85});
+  const mat = new THREE.PointsMaterial({color: 0xaaffcc, size: 4.8, transparent: true, opacity: 0.88});
   recoveryParticles = new THREE.Points(geo, mat);
   scene.add(recoveryParticles);
 
-  // Potential edges
   potentialEdges = [];
   for (let i = 0; i < count; i++) {
     for (let j = i+1; j < count; j++) {
       const dist = Math.hypot(positions[i*3]-positions[j*3], positions[i*3+1]-positions[j*3+1]);
-      if (dist < 55 && Math.random() > 0.55) potentialEdges.push([i, j]);
+      if (dist < 65 && Math.random() > 0.55) potentialEdges.push([i, j]);
     }
   }
 }
@@ -148,17 +148,19 @@ function updateConnectionGrowth(availability) {
   const pos = recoveryParticles.geometry.attributes.position.array;
   const max = Math.floor(potentialEdges.length * (availability / 100));
   for (let i = 0; i < max; i++) {
-    const [a,b] = potentialEdges[i];
+    const [a, b] = potentialEdges[i];
     const lineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([
-      pos[a*3],pos[a*3+1],pos[a*3+2], pos[b*3],pos[b*3+1],pos[b*3+2]
+      pos[a*3], pos[a*3+1], pos[a*3+2],
+      pos[b*3], pos[b*3+1], pos[b*3+2]
     ],3));
-    const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({color:0xaaffcc, transparent:true, opacity:0.35 + (availability/100)*0.5}));
+    const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({color:0xaaffcc, transparent:true, opacity:0.35 + (availability/100)*0.45}));
     scene.add(line);
     activeConnections.push(line);
   }
 }
 
 function updateAvailability(val) {
+  currentTime = val;
   const t = val / 100;
   document.getElementById('timeLabel').textContent = t < 0.3 ? "Low Availability" : t < 0.65 ? "Emerging Connections" : "High Density";
   layerObjects.forEach(obj => obj.group.scale.setScalar(0.92 + t * 0.28));
@@ -173,12 +175,14 @@ function applyWitnessToRecovery() {
   else { recoveryParticles.material.size = 4.5; recoveryParticles.material.opacity = 0.85; }
 }
 
-function animate() {
+let lastTime = performance.now();
+function animate(now) {
   if (isPaused) { requestAnimationFrame(animate); return; }
+  const elapsed = (now - lastTime) * 0.001;
+  lastTime = now;
 
   layerObjects.forEach(obj => {
     if (!reduceMotion) obj.angle += obj.baseSpeed * 55;
-    // Simple rotation
     obj.group.rotation.y = obj.angle * 0.7;
   });
 
@@ -193,6 +197,7 @@ function toggleReduceMotion() {
   reduceMotion = !reduceMotion;
   document.getElementById('motionBtn').textContent = reduceMotion ? "Static Mode: ON" : "Static Mode";
   if (reduceMotion) updateConnectionGrowth(0);
+  else updateAvailability(currentTime);
 }
 function setWitnessMode(mode) { currentWitness = mode; applyWitnessToRecovery(); }
 function resetAll() { location.reload(); }
@@ -203,7 +208,7 @@ createAgencyConnectionLayer();
 updateAvailability(40);
 requestAnimationFrame(animate);
 
-console.log('%c[CMA v3.2] Fixed camera + larger radius + opacity 1.0 - Ready', 'color:#6ff0c0');
+console.log('%c[CMA v3.2] Camera Fixed + Larger Radius + Opacity 1.0 - Ready', 'color:#6ff0c0');
 </script>
 </body>
 </html>
